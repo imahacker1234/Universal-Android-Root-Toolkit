@@ -1,0 +1,30 @@
+Universal-Android-Root-Toolkit/
+├── .github/
+│   └── workflows/
+│       └── test.yml              # Auto-testing
+├── lib/
+│   └── common.sh                 # Shared functions
+├── modules/
+│   ├── universal-root.sh
+│   ├── device-detector.sh
+│   ├── advanced-flash.sh
+│   ├── zip-flash.sh
+│   ├── rom-flash.sh
+│   ├── gsi-flash.sh
+│   ├── payload-extractor.sh
+│   ├── safetynet-fix.sh
+│   ├── backup-restore.sh
+│   ├── module-manager.sh
+│   ├── bootloader-unlock.sh
+│   ├── frp-bypass.sh
+│   ├── advanced-tools.sh
+│   ├── reboot-menu.sh
+│   ├── usb-fix.sh
+│   ├── diagnostics.sh
+│   └── settings.sh
+├── install.sh                    # One-line installer
+├── setup.sh                      # Repo setup script
+├── start.sh                      # Main launcher
+├── README.md                     # Documentation
+├── LICENSE                       # MIT License
+└── .gitignore
