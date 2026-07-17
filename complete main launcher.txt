@@ -1,0 +1,155 @@
+#!/data/data/com.termux/files/usr/bin/bash
+
+# ╔══════════════════════════════════════════════════════════════════╗
+# ║     Universal Android Root & Recovery Toolkit v3.0              ║
+# ║          Main Launcher - Professional Edition                   ║
+# ╚══════════════════════════════════════════════════════════════════╝
+
+set -e
+
+# Directories
+export TOOL_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+export LOG_DIR="$TOOL_DIR/logs"
+export TEMP_DIR="$TOOL_DIR/temp"
+export BACKUP_DIR="/storage/emulated/0/AndroidRootTool/Backups"
+export DOWNLOAD_DIR="/storage/emulated/0/AndroidRootTool/Downloads"
+
+# Create directories
+mkdir -p "$LOG_DIR" "$TEMP_DIR" "$BACKUP_DIR" "$DOWNLOAD_DIR"
+
+# Source common functions
+source "$TOOL_DIR/lib/common.sh"
+
+# Logging
+exec 1> >(tee -a "$LOG_DIR/session_$(date +%Y%m%d_%H%M%S).log")
+exec 2>&1
+
+# Cleanup on exit
+cleanup() {
+    rm -rf "$TEMP_DIR"/* 2>/dev/null || true
+}
+trap cleanup EXIT
+
+# Banner
+show_banner() {
+    clear
+    echo -e "${CYAN}"
+    echo "╔══════════════════════════════════════════════════════════════════╗"
+    echo "║  ██╗   ██╗███╗   ██╗██╗██╗   ██╗███████╗██████╗ ███████╗         ║"
+    echo "║  ██║   ██║████╗  ██║██║██║   ██║██╔════╝██╔══██╗██╔════╝         ║"
+    echo "║  ██║   ██║██╔██╗ ██║██║██║   ██║█████╗  ██████╔╝███████╗         ║"
+    echo "║  ██║   ██║██║╚██╗██║██║╚██╗ ██╔╝██╔══╝  ██╔══██╗╚════██║         ║"
+    echo "║  ╚██████╔╝██║ ╚████║██║ ╚████╔╝ ███████╗██║  ██║███████║         ║"
+    echo "║   ╚═════╝ ╚═╝  ╚═══╝╚═╝  ╚═══╝  ╚══════╝╚═╝  ╚═╝╚══════╝         ║"
+    echo "║                                                                  ║"
+    echo "║       Universal Android Root & Recovery Toolkit v3.0             ║"
+    echo "║            Professional Edition - Enhanced                         ║"
+    echo "╚══════════════════════════════════════════════════════════════════╝"
+    echo -e "${NC}"
+}
+
+# Check dependencies
+check_environment() {
+    local deps=("git" "wget" "curl" "unzip" "python" "bc")
+    local missing=()
+    
+    for dep in "${deps[@]}"; do
+        if ! command -v "$dep" &>/dev/null; then
+            missing+=("$dep")
+        fi
+    done
+    
+    if [ ${#missing[@]} -gt 0 ]; then
+        echo -e "${YELLOW}[!] Installing missing packages...${NC}"
+        yes | pkg install "${missing[@]}" termux-api -y 2>/dev/null || true
+    fi
+    
+    # Ensure ADB/Fastboot links exist
+    [ ! -f "$PREFIX/bin/adb" ] && ln -sf "$PREFIX/bin/termux-adb" "$PREFIX/bin/adb" 2>/dev/null || true
+    [ ! -f "$PREFIX/bin/fastboot" ] && ln -sf "$PREFIX/bin/termux-fastboot" "$PREFIX/bin/fastboot" 2>/dev/null || true
+}
+
+# Device status panel
+show_device_panel() {
+    echo -e "\n${CYAN}╔══════════════════════════════════════════════════════════════════╗${NC}"
+    echo -e "${CYAN}║${WHITE}                    DEVICE STATUS                                  ${CYAN}║${NC}"
+    echo -e "${CYAN}╠══════════════════════════════════════════════════════════════════╣${NC}"
+    
+    # ADB Status
+    local adb_device=$(adb devices 2>/dev/null | grep -v "List" | grep "device" | awk '{print $1}')
+    if [ -n "$adb_device" ]; then
+        local model=$(adb shell getprop ro.product.model 2>/dev/null | tr -d '\r' || echo "Unknown")
+        local android=$(adb shell getprop ro.build.version.release 2>/dev/null | tr -d '\r' || echo "?")
+        echo -e "${CYAN}║${GREEN}  ✓ ADB Connected:${NC} $model (Android $android)${CYAN}$(printf '%*s' $((49-${#model}-${#android})) '')║${NC}"
+    else
+        echo -e "${CYAN}║${YELLOW}  ! No ADB Connection${NC}$(printf '%*s' 46 '')${CYAN}║${NC}"
+    fi
+    
+    # Fastboot Status
+    local fb_device=$(fastboot devices 2>/dev/null | grep "fastboot" | awk '{print $1}')
+    if [ -n "$fb_device" ]; then
+        echo -e "${CYAN}║${GREEN}  ✓ Fastboot Connected:${NC} $fb_device${CYAN}$(printf '%*s' $((43-${#fb_device})) '')║${NC}"
+    else
+        echo -e "${CYAN}║${YELLOW}  ! No Fastboot Connection${NC}$(printf '%*s' 42 '')${CYAN}║${NC}"
+    fi
+    
+    # Root Status
+    if adb shell su -c "id" &>/dev/null; then
+        echo -e "${CYAN}║${GREEN}  ✓ Root Access Available${NC}$(printf '%*s' 42 '')${CYAN}║${NC}"
+    else
+        echo -e "${CYAN}║${RED}  ✗ No Root Access${NC}$(printf '%*s' 47 '')${CYAN}║${NC}"
+    fi
+    
+    echo -e "${CYAN}╚══════════════════════════════════════════════════════════════════╝${NC}\n"
+}
+
+# Main menu
+main_menu() {
+    while true; do
+        show_banner
+        check_environment
+        show_device_panel
+        
+        echo -e "${BOLD}${WHITE}╔══════════════════════════════════════════════════════════════════╗${NC}"
+        echo -e "${BOLD}${WHITE}║                     MAIN MENU                                    ║${NC}"
+        echo -e "${BOLD}${WHITE}╠══════════════════════════════════════════════════════════════════╣${NC}"
+        echo -e "${BOLD}${WHITE}║  ${GREEN}[1]${WHITE} 🔓 Universal Root        ${GREEN}[10]${WHITE} 🔧 Module Manager          ║${NC}"
+        echo -e "${BOLD}${WHITE}║  ${GREEN}[2]${WHITE} 📱 Device Info           ${GREEN}[11]${WHITE} 🔐 Bootloader Unlock      ║${NC}"
+        echo -e "${BOLD}${WHITE}║  ${GREEN}[3]${WHITE} 💿 Flash Images          ${GREEN}[12]${WHITE} 🚫 FRP Bypass             ║${NC}"
+        echo -e "${BOLD}${WHITE}║  ${GREEN}[4]${WHITE} 📦 Flash ZIP             ${GREEN}[13]${WHITE} ⚡ Advanced Tools         ║${NC}"
+        echo -e "${BOLD}${WHITE}║  ${GREEN}[5]${WHITE} 🔄 Flash ROM             ${GREEN}[14]${WHITE} 🔄 Reboot Menu           ║${NC}"
+        echo -e "${BOLD}${WHITE}║  ${GREEN}[6]${WHITE} 🌐 Flash GSI             ${GREEN}[15]${WHITE} 🔌 USB Fix               ║${NC}"
+        echo -e "${BOLD}${WHITE}║  ${GREEN}[7]${WHITE} 🗜️  Extract Payload      ${GREEN}[16]${WHITE} 📊 Diagnostics           ║${NC}"
+        echo -e "${BOLD}${WHITE}║  ${GREEN}[8]${WHITE} 🛡️  SafetyNet Fix        ${GREEN}[17]${WHITE} ⚙️  Settings              ║${NC}"
+        echo -e "${BOLD}${WHITE}║  ${GREEN}[9]${WHITE} 💾 Backup/Restore        ${GREEN}[18]${WHITE} ❌ Exit                  ║${NC}"
+        echo -e "${BOLD}${WHITE}╚══════════════════════════════════════════════════════════════════╝${NC}"
+        echo ""
+        
+        read -p "$(echo -e ${CYAN}[?]${NC} Select option: )" choice
+        
+        case $choice in
+            1) bash "$TOOL_DIR/modules/universal-root.sh" ;;
+            2) bash "$TOOL_DIR/modules/device-detector.sh" ;;
+            3) bash "$TOOL_DIR/modules/advanced-flash.sh" ;;
+            4) bash "$TOOL_DIR/modules/zip-flash.sh" ;;
+            5) bash "$TOOL_DIR/modules/rom-flash.sh" ;;
+            6) bash "$TOOL_DIR/modules/gsi-flash.sh" ;;
+            7) bash "$TOOL_DIR/modules/payload-extractor.sh" ;;
+            8) bash "$TOOL_DIR/modules/safetynet-fix.sh" ;;
+            9) bash "$TOOL_DIR/modules/backup-restore.sh" ;;
+            10) bash "$TOOL_DIR/modules/module-manager.sh" ;;
+            11) bash "$TOOL_DIR/modules/bootloader-unlock.sh" ;;
+            12) bash "$TOOL_DIR/modules/frp-bypass.sh" ;;
+            13) bash "$TOOL_DIR/modules/advanced-tools.sh" ;;
+            14) bash "$TOOL_DIR/modules/reboot-menu.sh" ;;
+            15) bash "$TOOL_DIR/modules/usb-fix.sh" ;;
+            16) bash "$TOOL_DIR/modules/diagnostics.sh" ;;
+            17) bash "$TOOL_DIR/modules/settings.sh" ;;
+            18) echo -e "\n${GREEN}[✓] Goodbye!${NC}\n"; exit 0 ;;
+            *) echo -e "\n${RED}[!] Invalid option${NC}\n"; sleep 1 ;;
+        esac
+    done
+}
+
+# Start
+main_menu
